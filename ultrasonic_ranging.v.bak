@@ -1,0 +1,447 @@
+module ultrasonic_ranging(
+     input   sys_clk   ,
+	  input   rst_n     ,
+	  input   key1      ,
+	  input   key2      ,
+	  input   key3      ,
+	  input   key4      ,
+	  input   uart_rx   ,
+	  output  uart_tx   ,
+	  output reg  led0  ,
+	  output    beep  ,
+	  
+    output  wire            stcp        , //数据存储器时钟
+    output  wire            shcp        , //移位寄存器时钟
+    output  wire            ds          , //串行数据输入
+    output  wire            oe            //使能信号
+
+);
+
+ 
+   parameter DATA_WIDTH = 112;
+	parameter MSB_FIRST = 0;
+
+	
+wire 	key_flag1;
+wire  key_value1;
+	
+	key_debounce u0_key_debounce(
+.sys_clk(sys_clk),          //外部50M时钟
+.sys_rst_n(rst_n),        //外部复位信号，低有效
+    
+.key(key1),              //外部按键输入
+.key_flag(key_flag1),         //按键数据有效信号
+.key_value(key_value1)         //按键消抖后的数据  
+    );
+
+wire 	key_flag2;
+wire  key_value2;
+	
+	key_debounce u1_key_debounce(
+.sys_clk(sys_clk),          //外部50M时钟
+.sys_rst_n(rst_n),        //外部复位信号，低有效
+    
+.key(key2),              //外部按键输入
+.key_flag(key_flag2),         //按键数据有效信号
+.key_value(key_value2)         //按键消抖后的数据  
+    );
+
+wire 	key_flag3;
+wire  key_value3;
+	
+	key_debounce u2_key_debounce(
+.sys_clk(sys_clk),          //外部50M时钟
+.sys_rst_n(rst_n),        //外部复位信号，低有效
+    
+.key(key3),              //外部按键输入
+.key_flag(key_flag3),         //按键数据有效信号
+.key_value(key_value3)         //按键消抖后的数据  
+    );
+
+wire 	key_flag4;
+wire  key_value4;
+	
+	key_debounce u3_key_debounce(
+.sys_clk(sys_clk),          //外部50M时钟
+.sys_rst_n(rst_n),        //外部复位信号，低有效
+    
+.key(key4),              //外部按键输入
+.key_flag(key_flag4),         //按键数据有效信号
+.key_value(key_value4)         //按键消抖后的数据  
+    );
+	 
+	 
+
+
+reg [31:0] cnta;
+always@(posedge sys_clk or negedge rst_n)begin
+   if(!rst_n)begin
+	   cnta <= 32'd0;
+		led0 <= 1'b0;
+	end
+	else begin
+	   if(cnta <= 32'd25_000_000)begin
+		   cnta <= cnta + 1'b1;
+			led0 <= led0;
+		end
+		else begin
+		   cnta <= 32'd0;
+			led0 <= ~led0;
+		end
+	end
+end
+
+reg [31:0] cntc;
+reg beep_reg;
+reg beep_en;
+always@(posedge sys_clk )begin
+   begin
+	   if(cntc <= 32'd25_000)begin
+		   cntc <= cntc + 1'b1;
+			beep_reg <= beep_reg;
+		end
+		else begin
+		   cntc <= 32'd0;
+			beep_reg <= ~beep_reg;
+		end
+	end
+end
+
+reg [DATA_WIDTH-1:0]tx_data;
+reg  send_en; 
+reg [7:0] send_cnt;
+wire Tx_Done;
+wire uart_state ;
+wire [1:0]state;
+
+reg uart_data_tx_rst_n;
+    uart_data_tx 
+    #(
+		.DATA_WIDTH(DATA_WIDTH),
+		.MSB_FIRST(MSB_FIRST)
+	)uart_data_tx(
+        .Clk(sys_clk),
+        .Rst_n(rst_n),
+      
+        .data(tx_data),
+        .send_en(send_en),   
+        .Baud_Set(3'd3),  //波特率选择57600
+		  .send_cnt(send_cnt),
+        .state(state),
+        .uart_tx(uart_tx),  
+        .Tx_Done(Tx_Done),   
+        .uart_state(uart_state) 
+    );
+	 
+	 
+ wire [DATA_WIDTH-1:0]rx_data;
+ wire Rx_Done;
+ reg [7:0] receive_cnt;
+		  
+    uart_data_rx 
+    #(
+		.DATA_WIDTH(DATA_WIDTH),
+		.MSB_FIRST(MSB_FIRST)		
+	)
+	uart_data_rx(
+        .Clk(sys_clk),
+        .Rst_n(rst_n),
+        .uart_rx(uart_rx),
+        .receive_cnt(receive_cnt),
+        .data(rx_data),
+        .Rx_Done(Rx_Done),
+        //.timeout_flag(led[0]),
+        
+        .Baud_Set(3'd3)
+     );	 
+	 
+	 
+//
+reg [4:0] status;	 
+reg [31:0] cntb;//延时	 
+reg [19:0] data;//数码管显示数据
+reg [2:0] seg_sel;
+always@(posedge sys_clk or negedge rst_n)begin
+   if(!rst_n)begin
+      tx_data <= 112'hff_05_00_01_03_00_01_ff_ff_ff_ff_01_ef;
+		send_cnt <= 8'd96;
+		receive_cnt <= 8'd96;
+		send_en <= 1'b0;
+		status <= 5'd16;
+		cntb <= 32'd0;
+		beep_en <= 1'b0;
+		data <= 20'd0;
+		seg_sel <= 3'd0;
+   end
+   else begin
+	   case(status)
+		    5'd0:begin 
+			           data <= 'd10;
+			           if(cntb < 32'd50_000_0)begin
+						     cntb <= cntb + 1'b1;
+							  status <= status;
+						  end
+						  else begin
+						     cntb <= 32'd0;
+							  status <= status + 1'b1;
+						  end
+			      end
+			 5'd1:begin
+			           if( (key_flag1)&&(!key_value1)  )begin
+		                 send_en <= 1'b1;
+							  tx_data <= 112'hff_05_00_01_03_00_01_ff_ff_ff_ff_01_ef;//发送读取指纹命令
+							  send_cnt <= 8'd96;//12个字节
+		                 receive_cnt <= 8'd96;
+							  status <= status + 1'b1;
+		              end
+		              else begin
+		                 send_en <= 1'b0;
+							  status <= status;
+		              end
+			      end
+			 5'd2:begin
+			           send_en <= 1'b0;
+			           if(Rx_Done)begin//接收到回复
+						     if( rx_data[95:88] == 8'd0 )begin
+						         status <= status + 1'b1;
+									data <= 20'd20;
+							  end
+							  else begin
+							      status <= 5'd1;
+									data <= 20'd11;
+							  end
+						  end
+						  else begin
+						     status <= status;
+						  end
+			      end
+			 5'd3:begin
+			           if(cntb < 32'd5)begin//等待10ms
+						     cntb <= cntb + 1'b1;
+							  status <= status;
+						  end
+						  else begin
+						     cntb <= 32'd0;
+							  status <= status + 1'b1;
+						  end
+			      end
+			 5'd4:begin
+		                 send_en <= 1'b1;
+							  tx_data <= 112'h08_00_01_02_04_00_01_ff_ff_ff_ff_01_ef;//生成特征值到缓存1  104'h0_00_01_02_04_00_01_ff_ff_ff_ff_01_ef
+							  send_cnt <= 8'd104;//13个字节
+		                 receive_cnt <= 8'd96;
+							  status <= status + 1'b1;
+			      end
+			 5'd5:begin
+			           send_en <= 1'b0;
+			           if(Rx_Done)begin//接收到回复
+						     if( rx_data[95:88] == 8'd0 )begin
+						         status <= status + 1'b1;
+									data <= 20'd30;
+							  end
+							  else begin//回复不正确
+							      status <= 5'd4;
+									data <= 20'd21;
+							  end
+						  end
+						  else begin
+						     status <= status;
+						  end
+			      end
+			 5'd6:begin
+			           if(cntb < 32'd5)begin//等待10ms
+						     cntb <= cntb + 1'b1;
+							  status <= status;
+						  end
+						  else begin
+						     cntb <= 32'd0;
+							  status <= status + 1'b1;
+						  end
+			      end
+			 5'd7:begin
+			           if( (key_flag2)&&(!key_value2)  )begin
+		                 send_en <= 1'b1;
+							  tx_data <= 112'hff_05_00_01_03_00_01_ff_ff_ff_ff_01_ef;//发送读取指纹命令
+							  send_cnt <= 8'd96;//12个字节
+		                 receive_cnt <= 8'd96;
+							  status <= status + 1'b1;
+		              end
+		              else begin
+		                 send_en <= 1'b0;
+							  status <= status;
+		              end
+			      end
+			 5'd8:begin
+			           send_en <= 1'b0;
+			           if(Rx_Done)begin//接收到回复
+						     if( rx_data[95:88] == 8'd0 )begin//回复正确
+						         status <= status + 1'b1;
+									data <= 20'd40;
+							  end
+							  else begin
+							      status <= 5'd7;
+									data <= 20'd31;
+							  end
+						  end
+						  else begin
+						     status <= status;
+						  end
+			      end
+			 5'd9:begin
+			           if(cntb < 32'd5)begin//等待10ms
+						     cntb <= cntb + 1'b1;
+							  status <= status;
+						  end
+						  else begin
+						     cntb <= 32'd0;
+							  status <= status + 1'b1;
+						  end
+			      end
+			 5'd10:begin
+		                 send_en <= 1'b1;
+							  tx_data <= 112'h09_00_02_02_04_00_01_ff_ff_ff_ff_01_ef;//生成特征值到缓存2  104'h0_00_01_02_04_00_01_ff_ff_ff_ff_01_ef
+							  send_cnt <= 8'd104;//13个字节
+		                 receive_cnt <= 8'd96;
+							  status <= status + 1'b1;
+			      end
+			 5'd11:begin
+			           send_en <= 1'b0;
+			           if(Rx_Done)begin//接收到回复
+						     if( rx_data[95:88] == 8'd0 )begin
+						         status <= status + 1'b1;
+									data <= 20'd50;
+							  end
+							  else begin//回复不正确
+							      status <= 5'd10;
+									data <= 20'd41;
+							  end
+						  end
+						  else begin
+						     status <= status;
+						  end
+			      end
+			 5'd12:begin
+			           if(cntb < 32'd5)begin//等待10ms
+						     cntb <= cntb + 1'b1;
+							  status <= status;
+						  end
+						  else begin
+						     cntb <= 32'd0;
+							  status <= status + 1'b1;
+						  end
+			      end
+			 5'd13:begin
+		                 send_en <= 1'b1;
+							  tx_data <= 112'hff_07_00_03_03_00_01_ff_ff_ff_ff_01_ef;//比较两个指纹  EF 01 FF FF FF FF 01 00 03 03 00 07
+							  send_cnt <= 8'd96;//13个字节
+		                 receive_cnt <= 8'd112;
+							  status <= status + 1'b1;
+			      end
+			 5'd14:begin
+			           send_en <= 1'b0;
+			           if(Rx_Done)begin//接收到回复
+						     if( rx_data[79:72] == 8'd0 )begin
+						         status <= status ;//   指纹正确就卡在这里 接下来看怎么处理下
+									data <= 20'd888888;
+									beep_en <= 1'b0;
+							  end
+							  else begin//回复不正确
+							       status <= status ; //  指纹错误就卡在这里 接下来看怎么处理下
+									 data <= 20'd111111;
+									 beep_en <= 1'b1;
+							  end
+						  end
+						  else begin
+						     status <= status;
+						  end
+			      end
+			 5'd15:begin 
+			          ;
+			       end
+			 5'd16:begin //之后客户加的 密码锁功能
+			           if( (key_flag3)&&(!key_value3)  )begin//选择数码管位数
+						     if(seg_sel < 3'd5)begin
+							     seg_sel <= seg_sel + 1'b1;
+							  end
+							  else begin
+							     seg_sel <= 3'd0;
+							  end
+						  end
+						  if( (key_flag1)&&(!key_value1)  )begin//选择数码管位数
+						     if(seg_sel > 3'd0)begin
+							     seg_sel <= seg_sel - 1'b1;
+							  end
+							  else begin
+							     seg_sel <= 3'd5;
+							  end
+						  end
+						  case(seg_sel)
+						      3'd0:begin
+								          if( (key_flag4)&&(!key_value4)  )begin
+											    data <= data%'d1000000 + 20'd100000;
+											 end
+								     end
+							   3'd1:begin
+								          if( (key_flag4)&&(!key_value4)  )begin
+											    data <= data%'d1000000 + 20'd10000;
+											 end
+								     end
+							   3'd2:begin
+								          if( (key_flag4)&&(!key_value4)  )begin
+											    data <= data%'d1000000 + 20'd1000;
+											 end
+								     end
+							   3'd3:begin
+								          if( (key_flag4)&&(!key_value4)  )begin
+											    data <= data%'d1000000 + 20'd100;
+											 end
+								     end
+							   3'd4:begin
+								          if( (key_flag4)&&(!key_value4)  )begin
+											    data <= data%'d1000000 + 20'd10;
+											 end
+								     end
+							   3'd5:begin
+								          if( (key_flag4)&&(!key_value4)  )begin
+											    data <= data%'d1000000 + 20'd1;
+											 end
+								     end
+							   default:begin
+								        data <= data;
+								     end
+						  endcase
+						  if( (key_flag2)&&(!key_value2)  )begin
+						     if(data == 'd123456)begin
+							      status <= 'd0;
+							  end
+							  else begin
+							     status <= status;
+							  end
+						  end
+						  
+			       end
+			 default:status <= status;
+		endcase
+
+   end
+end	
+	 
+seg_595_dynamic    seg_595_dynamic_inst
+(
+    .sys_clk    (sys_clk   ),   //系统时钟，频率50MHz
+    .sys_rst_n  (rst_n ),   //复位信号，低有效
+    .data       (data      ),   //数码管要显示的值
+    .point      (6'd0     ),   //小数点显示,高电平有效
+    .seg_en     (1'b1    ),   //数码管使能信号，高电平有效
+    .sign       (1'b0      ),   //符号位，高电平显示负号
+
+    .stcp       (stcp      ),   //输出数据存储寄时钟
+    .shcp       (shcp      ),   //移位寄存器的时钟输入
+    .ds         (ds        ),   //串行数据输入
+    .oe         (oe        )    //输出使能信号
+);
+	 
+	 
+assign beep = beep_en? beep_reg : 1'b0;
+
+endmodule

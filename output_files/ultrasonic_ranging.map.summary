@@ -1,0 +1,14 @@
+Analysis & Synthesis Status : Successful - Sat Dec 20 16:54:51 2025
+Quartus Prime Version : 18.1.0 Build 625 09/12/2018 SJ Lite Edition
+Revision Name : ultrasonic_ranging
+Top-level Entity Name : ultrasonic_ranging
+Family : Cyclone IV E
+Total logic elements : 1,357
+    Total combinational functions : 797
+    Dedicated logic registers : 1,020
+Total registers : 1020
+Total pins : 12
+Total virtual pins : 0
+Total memory bits : 4,608
+Embedded Multiplier 9-bit elements : 0
+Total PLLs : 0

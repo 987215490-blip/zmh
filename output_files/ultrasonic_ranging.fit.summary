@@ -1,0 +1,16 @@
+Fitter Status : Successful - Sat Dec 20 16:54:56 2025
+Quartus Prime Version : 18.1.0 Build 625 09/12/2018 SJ Lite Edition
+Revision Name : ultrasonic_ranging
+Top-level Entity Name : ultrasonic_ranging
+Family : Cyclone IV E
+Device : EP4CE10F17C8
+Timing Models : Final
+Total logic elements : 1,279 / 10,320 ( 12 % )
+    Total combinational functions : 799 / 10,320 ( 8 % )
+    Dedicated logic registers : 1,020 / 10,320 ( 10 % )
+Total registers : 1020
+Total pins : 12 / 180 ( 7 % )
+Total virtual pins : 0
+Total memory bits : 4,608 / 423,936 ( 1 % )
+Embedded Multiplier 9-bit elements : 0 / 46 ( 0 % )
+Total PLLs : 0 / 2 ( 0 % )
